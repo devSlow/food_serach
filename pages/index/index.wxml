@@ -7,7 +7,9 @@
         <view class="title-bar"></view>
         <text>症状描述</text>
       </view>
-      <view class="input-icon"></view>
+      <view class="history-btn" bindtap="showHistory">
+        <text>历史记录</text>
+      </view>
     </view>
     <view class="input-wrapper">
       <textarea 
@@ -85,4 +87,32 @@
   </scroll-view>
 
   <canvas type="2d" id="shareCanvas" class="share-canvas"></canvas>
+
+  <!-- 历史记录弹窗 -->
+  <view class="history-popup {{showHistory ? 'show' : ''}}" bindtap="hideHistory" catchtouchmove="preventScroll">
+    <view class="history-content" catchtap="preventBubble">
+      <scroll-view 
+        scroll-y 
+        class="history-list"
+        enhanced="{{true}}"
+        show-scrollbar="{{false}}"
+        bounces="{{true}}"
+      >
+        <view wx:if="{{historyList.length === 0}}" class="empty-history">
+          <text>暂无历史记录</text>
+        </view>
+        <view 
+          wx:for="{{historyList}}" 
+          wx:key="timestamp" 
+          class="history-item"
+          hover-class="history-item-hover"
+          bindtap="useHistoryItem"
+          data-index="{{index}}"
+        >
+          <view class="history-question">{{item.question}}</view>
+          <view class="history-time">{{item.timeStr}}</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
 </view>

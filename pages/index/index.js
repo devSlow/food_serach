@@ -9,7 +9,9 @@ Page({
     formattedContent: [],
     isContentFullyDisplayed: false,
     isTyping: false,  // 添加打字机状态
-    cacheHit: false  // 添加缓存命中标识
+    cacheHit: false,  // 添加缓存命中标识
+    showHistory: false, // 添加历史记录显示状态
+    historyList: [] // 添加历史记录列表
   },
 
   onInput(e) {
@@ -307,6 +309,9 @@ Page({
           });
         }
       }, 100);
+
+      // 在使用缓存时添加
+      this.saveHistory(this.data.inputText, cachedResult.content);
     } else {
       // 没有缓存，发起API请求
       this.setData({ 
@@ -347,6 +352,9 @@ Page({
             // 开始打字机效果
             this.typeWriter(formattedContent);
           });
+          
+          // 在使用API请求成功时添加
+          this.saveHistory(this.data.inputText, content);
           
           clearInterval(this.loadingTimer);
           setTimeout(() => {
@@ -805,5 +813,114 @@ Page({
       isContentFullyDisplayed: false,
       isTyping: false
     });
+  },
+
+  // 显示历史记录
+  showHistory() {
+    this.setData({ showHistory: true });
+  },
+
+  // 隐藏历史记录
+  hideHistory() {
+    this.setData({ showHistory: false });
+  },
+
+  // 加载历史记录
+  loadHistory() {
+    const history = wx.getStorageSync('history') || [];
+    this.setData({ historyList: history });
+  },
+
+  // 保存历史记录
+  saveHistory(question, answer) {
+    const timestamp = Date.now();
+    const timeStr = this.formatTime(new Date());
+    const history = wx.getStorageSync('history') || [];
+    
+    // 检查是否已存在相同问题
+    const existingIndex = history.findIndex(item => item.question === question);
+    if (existingIndex !== -1) {
+      // 如果存在，更新时间和答案
+      history[existingIndex].answer = answer;
+      history[existingIndex].timestamp = timestamp;
+      history[existingIndex].timeStr = timeStr;
+    } else {
+      // 如果不存在，添加新记录
+      history.unshift({
+        question,
+        answer,
+        timestamp,
+        timeStr
+      });
+    }
+    
+    // 最多保存50条记录
+    if (history.length > 50) {
+      history.pop();
+    }
+    
+    // 保存到本地存储并更新状态
+    wx.setStorageSync('history', history);
+    this.setData({ historyList: history });
+  },
+
+  // 使用历史记录
+  useHistoryItem(e) {
+    const index = e.currentTarget.dataset.index;
+    const item = this.data.historyList[index];
+    
+    // 判断是否正在加载或打字中
+    if (this.data.loading || this.data.isTyping) {
+      wx.showToast({
+        title: '请等待当前回答完成',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    this.setData({
+      inputText: item.question,
+      showHistory: false
+    });
+
+    // 格式化内容并初始化显示
+    const formattedContent = this.formatContent(item.answer);
+    formattedContent.forEach(section => {
+      section.displayContent = '';  // 初始化为空
+    });
+    
+    // 同时保存到缓存中
+    const keywords = this.extractKeywords(item.question);
+    this.saveToCache(
+      item.question,
+      keywords,
+      item.answer
+    );
+    
+    this.setData({ 
+      formattedContent,
+      isContentFullyDisplayed: false,
+      isTyping: false
+    }, () => {
+      // 开始打字机效果
+      this.typeWriter(formattedContent);
+    });
+  },
+
+  // 格式化时间
+  formatTime(date) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    
+    return `${year}/${month}/${day} ${hour}:${minute < 10 ? '0' + minute : minute}`;
+  },
+
+  onLoad() {
+    // 加载历史记录
+    this.loadHistory();
   }
 });
