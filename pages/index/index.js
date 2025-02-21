@@ -784,5 +784,26 @@ Page({
         });
       }
     });
+  },
+
+  // 添加清除输入方法
+  clearInput() {
+    // 判断是否正在加载或打字中
+    if (this.data.loading || this.data.isTyping) {
+      wx.showToast({
+        title: '请等待当前回答完成',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    // 清除输入内容和结果
+    this.setData({
+      inputText: '',
+      formattedContent: [],
+      isContentFullyDisplayed: false,
+      isTyping: false
+    });
   }
 });
