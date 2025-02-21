@@ -922,5 +922,45 @@ Page({
   onLoad() {
     // 加载历史记录
     this.loadHistory();
+  },
+
+  // 清除历史记录
+  clearHistory() {
+    wx.showModal({
+      title: '确认清空',
+      content: '确定要清空所有历史记录吗？清空后将无法恢复。',
+      confirmColor: '#ff3b30',
+      success: (res) => {
+        if (res.confirm) {
+          // 清空历史记录
+          wx.removeStorageSync('history');
+          // 清空建议缓存
+          wx.removeStorageSync('adviceCache');
+          
+          // 更新状态
+          this.setData({ 
+            historyList: [],
+            showHistory: false  // 清空后关闭历史记录弹窗
+          });
+          
+          // 显示提示
+          wx.showToast({
+            title: '已清空全部记录',
+            icon: 'success',
+            duration: 2000
+          });
+        }
+      }
+    });
+  },
+
+  // 添加阻止事件冒泡的方法
+  preventBubble() {
+    return false;
+  },
+
+  // 阻止滚动穿透
+  preventScroll() {
+    return false;
   }
 });

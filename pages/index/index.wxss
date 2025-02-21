@@ -519,7 +519,6 @@ page {
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 8px rgba(0, 0, 0, 0.1);
-  padding-top: 0;
   box-sizing: border-box;
   border-top-left-radius: 12px;
   border-bottom-left-radius: 12px;
@@ -532,7 +531,7 @@ page {
 .history-list {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: 20rpx;
   padding-top: calc(env(safe-area-inset-top) + 44px);
   background: #fff;
 }
@@ -565,4 +564,48 @@ page {
   color: #999;
   font-size: 28rpx;
   margin-top: 200rpx;
+}
+
+/* 历史记录标题栏 */
+.history-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 85%;
+  padding: env(safe-area-inset-top) 32rpx 20rpx;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f5f5f5;
+  z-index: 100;
+}
+
+.history-title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.history-footer {
+  padding: 32rpx;
+  border-top: 1px solid #f5f5f5;
+  background: #fff;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+}
+
+.clear-history-btn {
+  width: 100%;
+  padding: 20rpx 0;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  color: #ff3b30;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.clear-history-btn:active {
+  opacity: 0.8;
+  background: #f0f0f0;
 }
