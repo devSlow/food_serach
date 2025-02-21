@@ -501,34 +501,36 @@ Page({
       // 设置背景
       ctx.scale(dpr, dpr);
       ctx.fillStyle = themeColor;
+      // 减小蓝色边框宽度，从原来的20px减小到10px
       ctx.fillRect(0, 0, 750, canvas.height / dpr);
 
-      // 主体内容卡片位置上移到顶部
+      // 主体内容卡片位置上移到顶部，增大白色区域
       ctx.fillStyle = '#FFFFFF';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
       ctx.shadowBlur = 10;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 2;
-      roundRect(ctx, 20, 20, 710, canvas.height / dpr - 40, 12);
+      // 修改白色区域的位置和大小，减小蓝色边框的显示范围
+      roundRect(ctx, 10, 10, 730, canvas.height / dpr - 20, 12);
       ctx.fill();
 
       // 重置阴影和文本对齐
       ctx.shadowColor = 'transparent';
       ctx.textAlign = 'left';
 
-      // 调整内容起始位置
-      let y = 80; // 上移起始位置
+      // 相应地调整内容区域的位置
+      let y = 70; // 调整起始位置
 
-      // 绘制标题
+      // 调整标题位置
       ctx.fillStyle = '#333333';
       ctx.font = 'bold 36px sans-serif';
       const titleText = '饮食建议';
-      ctx.fillText(titleText, 40, y);
+      ctx.fillText(titleText, 30, y);
       y += 60;
 
-      // 绘制问题区域
+      // 调整问题区域位置
       ctx.fillStyle = '#F8F9FA';
-      roundRect(ctx, 40, y, 670, 80, 8);
+      roundRect(ctx, 30, y, 690, 80, 8);
       ctx.fill();
 
       ctx.fillStyle = themeColor; // 使用主题色
