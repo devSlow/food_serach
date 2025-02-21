@@ -9,12 +9,19 @@
       </view>
       <view class="input-icon"></view>
     </view>
-    <textarea 
-      class="symptom-input" 
-      placeholder="请描述您的症状..."
-      value="{{inputText}}"
-      bindinput="onInput"
-    ></textarea>
+    <view class="input-wrapper">
+      <textarea 
+        class="symptom-input" 
+        placeholder="请描述您的症状..."
+        value="{{inputText}}"
+        bindinput="onInput"
+      ></textarea>
+      <view 
+        class="clear-btn {{inputText ? 'show' : ''}}" 
+        bindtap="clearInput"
+        hover-class="button-hover"
+      >×</view>
+    </view>
     <button 
       class="submit-btn {{inputText ? 'active' : ''}}" 
       bindtap="getDietAdvice"
