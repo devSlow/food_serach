@@ -1,0 +1,74 @@
+<!--index.wxml-->
+<navigation-bar title="膳查查" back="{{false}}" color="black" background="#FFF"></navigation-bar>
+<view class="page">
+  <view class="input-section">
+    <view class="input-header">
+      <view class="input-title">
+        <view class="title-bar"></view>
+        <text>症状描述</text>
+      </view>
+      <view class="input-icon"></view>
+    </view>
+    <textarea 
+      class="symptom-input" 
+      placeholder="请描述您的症状..."
+      value="{{inputText}}"
+      bindinput="onInput"
+    ></textarea>
+    <button 
+      class="submit-btn {{inputText ? 'active' : ''}}" 
+      bindtap="getDietAdvice"
+      disabled="{{!inputText || loading || isTyping}}"
+    >
+      {{loading ? loadingText : '获取饮食建议'}}
+    </button>
+  </view>
+
+  <view class="loading-container" wx:if="{{loading && !advice}}">
+    <view class="progress-bar">
+      <view class="progress-inner" style="width: {{loadingProgress}}%"></view>
+    </view>
+    <view class="loading-status">
+      <text class="loading-text">{{loadingText}}</text>
+      <text class="loading-percentage">{{loadingProgress}}%</text>
+    </view>
+  </view>
+
+  <scroll-view 
+    scroll-y 
+    class="result-scroll" 
+    wx:if="{{formattedContent.length > 0}}"
+    enhanced="{{true}}"
+    show-scrollbar="{{true}}"
+    bounces="{{false}}"
+  >
+    <view class="result-section">
+      <view class="result-header">
+        <view class="result-title">
+          <text>饮食建议</text>
+          <view class="title-decoration"></view>
+        </view>
+        <view 
+          class="share-btn {{!isContentFullyDisplayed ? 'disabled' : ''}}" 
+          bindtap="saveAsImage"
+        >
+          <image class="share-icon" src="/assets/share.png" mode="aspectFit"></image>
+          <text>生成图片</text>
+        </view>
+      </view>
+      <view class="question-box">
+        <view class="question-label">问题</view>
+        <view class="question-content">{{inputText}}</view>
+      </view>
+      <view class="formatted-content">
+        <block wx:for="{{formattedContent}}" wx:key="index">
+          <view class="{{item.style || item.type}}-section">
+            <rich-text nodes="{{item.displayContent}}"></rich-text>
+          </view>
+        </block>
+      </view>
+    </view>
+  </scroll-view>
+
+  <canvas type="2d" id="shareCanvas" class="share-canvas"></canvas>
+</view>
