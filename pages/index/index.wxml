@@ -48,12 +48,19 @@
           <text>饮食建议</text>
           <view class="title-decoration"></view>
         </view>
-        <view 
-          class="share-btn {{!isContentFullyDisplayed ? 'disabled' : ''}}" 
-          bindtap="saveAsImage"
-        >
-          <image class="share-icon" src="/assets/share.png" mode="aspectFit"></image>
-          <text>生成图片</text>
+        <view class="action-btns">
+          <view 
+            class="copy-btn {{!isContentFullyDisplayed ? 'disabled' : ''}}" 
+            bindtap="copyContent"
+          >
+            <text>复制</text>
+          </view>
+          <view 
+            class="share-btn {{!isContentFullyDisplayed ? 'disabled' : ''}}" 
+            bindtap="saveAsImage"
+          >
+            <text>生成图片</text>
+          </view>
         </view>
       </view>
       <view class="question-box">

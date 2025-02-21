@@ -736,5 +736,51 @@ Page({
     }
     
     return height;
+  },
+
+  // 在 Page 对象中添加复制方法
+  copyContent() {
+    if (!this.data.isContentFullyDisplayed) {
+      wx.showToast({
+        title: '请等待内容完全显示',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    // 组装要复制的文本
+    let copyText = '问题：' + this.data.inputText + '\n\n';
+    
+    // 添加回答内容
+    this.data.formattedContent.forEach(item => {
+      const text = item.displayContent.replace(/<[^>]+>/g, '');
+      if (item.type === 'title') {
+        copyText += '\n' + text + '\n';
+      } else if (item.type === 'list-item') {
+        copyText += '• ' + text + '\n';
+      } else if (item.type === 'text' && text !== '<br/>') {
+        copyText += text + '\n';
+      }
+    });
+
+    // 复制到剪贴板
+    wx.setClipboardData({
+      data: copyText,
+      success: () => {
+        wx.showToast({
+          title: '复制成功',
+          icon: 'success',
+          duration: 2000
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '复制失败',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+    });
   }
 });
