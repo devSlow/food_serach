@@ -5,7 +5,7 @@
     <view class="input-header">
       <view class="input-title">
         <view class="title-bar"></view>
-        <text>症状描述</text>
+        <text>病症描述</text>
       </view>
       <view class="history-btn" bindtap="showHistory">
         <text>历史记录</text>
@@ -14,7 +14,7 @@
     <view class="input-wrapper">
       <textarea 
         class="symptom-input" 
-        placeholder="请描述您的症状..."
+        placeholder="请描述您的病症..."
         value="{{inputText}}"
         bindinput="onInput"
       ></textarea>
@@ -124,6 +124,34 @@
           <text>清空历史记录</text>
         </view>
       </view>
+    </view>
+  </view>
+
+  <!-- 公告弹窗 -->
+  <view class="notice-popup {{showNotice ? 'show' : ''}}">
+    <view class="notice-modal">
+      <view class="notice-title">使用说明</view>
+      <view class="notice-content">
+        <view class="notice-item">
+          <view class="notice-subtitle">功能介绍</view>
+          <view class="notice-text">膳查查是一款基于人工智能的智能饮食建议小程序，可以根据您的病症提供专业的饮食建议。</view>
+        </view>
+        <view class="notice-item">
+          <view class="notice-subtitle">使用方法</view>
+          <view class="notice-text">1. 在输入框中描述您的病症，如：我有点头疼</view>
+          <view class="notice-text">2. 点击"获取饮食建议"按钮</view>
+          <view class="notice-text">3. 等待AI分析并生成建议</view>
+          <view class="notice-text">4. 查看分析结果和饮食建议</view>
+        </view>
+        <view class="notice-item">
+          <view class="notice-subtitle">温馨提示</view>
+          <view class="notice-text">• AI建议仅供参考，特殊情况请咨询医生</view>
+          <view class="notice-text">• AI生成结果可能会有些慢，并不是程序卡住了。感谢您的耐心等待</view>
+          <view class="notice-text">• 可以使用历史记录功能查看往期建议</view>
+          <view class="notice-text">• 支持生成图片和复制文字功能</view>
+        </view>
+      </view>
+      <button class="notice-btn" bindtap="closeNotice">我知道了</button>
     </view>
   </view>
 </view>

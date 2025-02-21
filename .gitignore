@@ -1,0 +1,21 @@
+# 配置文件
+config.js
+
+# IDE/编辑器文件
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 小程序开发工具
+.DS_Store
+project.private.config.json
+project.config.json
+
+# npm
+node_modules/
+package-lock.json
+
+# 临时文件
+*.log
+*.tmp 

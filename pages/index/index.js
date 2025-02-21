@@ -1,4 +1,6 @@
 // index.js
+import config from '../../config';
+
 Page({
   data: {
     inputText: '',
@@ -11,7 +13,9 @@ Page({
     isTyping: false,  // 添加打字机状态
     cacheHit: false,  // 添加缓存命中标识
     showHistory: false, // 添加历史记录显示状态
-    historyList: [] // 添加历史记录列表
+    historyList: [], // 添加历史记录列表
+    lastRequestTime: null,
+    showNotice: false, // 添加公告显示状态
   },
 
   onInput(e) {
@@ -58,11 +62,20 @@ Page({
           content: processMarkdown(section.trim()),
           style: '' // 初始样式为空
         });
-      } else if (section.startsWith('•') || section.startsWith('-')) {
-        // 列表项
+      } else if (section.match(/^\s*[•\[\-]\s*\[.*?\]:/)) {
+        // 匹配 [食物]: 格式或 • [食物]: 格式
+        const cleanSection = section.replace(/^\s*[•\[\-]\s*/, '');
         formatted.push({
           type: 'list-item',
-          content: processMarkdown(section.replace(/^[•-]\s*/, '').trim()),
+          content: processMarkdown(cleanSection.trim()),
+          style: '' // 初始样式为空
+        });
+      } else if (section.match(/^\s*[•\-]\s*/)) {
+        // 匹配普通列表项
+        const cleanSection = section.replace(/^\s*[•\-]\s*/, '');
+        formatted.push({
+          type: 'list-item',
+          content: processMarkdown(cleanSection.trim()),
           style: '' // 初始样式为空
         });
       } else if (section.trim()) {
@@ -138,44 +151,52 @@ Page({
 
   // 提取关键词
   extractKeywords(text) {
-    // 移除常见的语气词、标点符号等
-    const cleanText = text.replace(/[，。！？、；：""''（）]/g, ' ')
-      .replace(/[a-zA-Z]/g, ' ')
+    // 移除标点和特殊字符
+    const cleanText = text.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
     
-    // 分词并过滤掉停用词
-    const stopWords = ['我', '有', '是', '在', '了', '的', '得', '着', '和', '与', '及', '或'];
-    const words = cleanText.split(' ').filter(word => 
-      word.length >= 2 && !stopWords.includes(word)
-    );
+    // 更新停用词列表
+    const stopWords = new Set(['我', '有', '是', '在', '了', '的', '得', '着', '和', '与', '及', '或', '请', '帮', '我要', '想要', '需要']);
     
-    return words;
+    // 分词并过滤
+    return cleanText.split(' ')
+      .filter(word => 
+        word.length >= 2 && 
+        !stopWords.has(word) &&
+        !/^\d+$/.test(word) // 过滤纯数字
+      )
+      .slice(0, 5); // 只取前5个关键词
   },
 
   // 计算文本相似度
   calculateSimilarity(keywords1, keywords2) {
+    if (!keywords1 || !keywords2) return 0;
+    
     const set1 = new Set(keywords1);
     const set2 = new Set(keywords2);
+    
+    if (set1.size === 0 || set2.size === 0) return 0;
     
     const intersection = new Set([...set1].filter(x => set2.has(x)));
     const union = new Set([...set1, ...set2]);
     
-    return intersection.size / union.size;
+    return intersection.size / Math.min(set1.size, set2.size); // 使用最小集合大小作为分母
   },
 
   // 检查缓存
   checkCache(keywords) {
     try {
       const cache = wx.getStorageSync('adviceCache') || [];
-      
-      // 查找最相似的缓存项
       let bestMatch = null;
       let highestSimilarity = 0;
       
-      for (const item of cache) {
+      // 只检查最近的20条缓存
+      const recentCache = cache.slice(0, 20);
+      
+      for (const item of recentCache) {
         const similarity = this.calculateSimilarity(keywords, item.keywords);
-        if (similarity > highestSimilarity && similarity > 0.7) { // 相似度阈值
+        if (similarity > highestSimilarity && similarity > 0.6) { // 降低相似度阈值
           highestSimilarity = similarity;
           bestMatch = item;
         }
@@ -213,126 +234,276 @@ Page({
     }
   },
 
-  // 重试函数
-  async retryRequest(requestFn, maxRetries = 3) {
-    let lastError;
+  // 修改文本预处理函数
+  preprocessInput(text) {
+    // 1. 去除多余空格和换行
+    text = text.replace(/\s+/g, ' ').trim();
     
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await requestFn();
-      } catch (error) {
-        lastError = error;
-        // 如果不是最后一次尝试，等待后重试
-        if (i < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
-      }
+    // 2. 限制文本长度
+    if (text.length > 500) {
+      text = text.slice(0, 500);
+      wx.showToast({
+        title: '输入内容已超过500字，已自动截断',
+        icon: 'none',
+        duration: 2000
+      });
     }
-    throw lastError;
+
+    // 3. 提取症状关键词
+    const symptoms = this.extractSymptoms(text);
+    if (symptoms.length === 0) {
+      // 如果没有找到具体症状，使用分词提取关键词
+      const keywords = this.extractKeywords(text);
+      return `请针对以下情况提供饮食建议：${keywords.join('，')}`;
+    }
+
+    // 4. 提取身体状况
+    const conditions = this.extractConditions(text);
+    
+    // 5. 重组查询文本，更简洁明确
+    let query = `请针对`;
+    if (symptoms.length > 0) {
+      query += `${symptoms.join('，')}`;
+    }
+    if (conditions.length > 0) {
+      query += `，同时考虑${conditions.join('，')}的情况`;
+    }
+    query += `提供饮食建议。`;
+
+    return query;
   },
 
-  // 请求函数
+  // 优化症状关键词提取
+  extractSymptoms(text) {
+    const symptoms = [];
+    
+    // 扩展症状关键词，改用数组形式
+    const symptomKeywords = [
+      // 疼痛类
+      '疼', '痛', '酸', '胀', '不适',
+      // 消化类
+      '恶心', '呕吐', '腹泻', '便秘', '胃痛', '反酸',
+      // 呼吸类
+      '咳嗽', '咳', '喘', '气短',
+      // 体温类
+      '发烧', '发热', '低烧', '高烧',
+      // 神经类
+      '头晕', '头痛', '失眠', '眩晕', '疲劳', '乏力',
+      // 心血管类
+      '心慌', '胸闷', '心悸',
+      // 其他症状
+      '出汗', '浮肿', '口干', '口苦'
+    ];
+    
+    // 遍历关键词数组
+    symptomKeywords.forEach(keyword => {
+      const regex = new RegExp(`[^，。！？；,!?;]*${keyword}[^，。！？；,!?;]*`, 'g');
+      const matches = text.match(regex);
+      if (matches) {
+        // 提取最短的匹配项，避免重复冗长
+        const shortestMatch = matches.reduce((shortest, current) => 
+          current.length < shortest.length ? current : shortest
+        );
+        symptoms.push(shortestMatch.trim());
+      }
+    });
+
+    // 去重并限制数量，优先保留较短的描述
+    return [...new Set(symptoms)]
+      .sort((a, b) => a.length - b.length)
+      .slice(0, 2);
+  },
+
+  // 提取身体状况关键词
+  extractConditions(text) {
+    const conditions = [];
+    
+    // 常见状况关键词
+    const conditionKeywords = ['怀孕', '月经', '哺乳', '高血压', '糖尿病', '过敏', 
+      '胃病', '心脏病', '肝病', '肾病', '感冒', '发烧'];
+    
+    conditionKeywords.forEach(keyword => {
+      if (text.includes(keyword)) {
+        conditions.push(keyword);
+      }
+    });
+
+    return conditions;
+  },
+
+  // 修改请求函数
   makeRequest() {
+    // 预处理输入文本
+    const processedInput = this.preprocessInput(this.data.inputText);
+    
+    const requestData = {
+      model: config.MODEL,
+      messages: [
+        {
+          "role": "system",
+          "content": "你是一个营养顾问和专业医师。用通俗的语言回答用户的饮食问题。格式：\n1. 症状分析\n[简要分析]\n\n2. 推荐食物\n• [食物1]: [功效]\n• [食物2]: [功效]\n• [食物3]: [功效]\n\n3. 禁忌食物\n• [食物1]: [原因]\n• [食物2]: [原因]\n\n4. 饮食注意事项\n[要点]"
+        },
+        {
+          "role": "user",
+          "content": processedInput
+        }
+      ],
+      stream: false,
+      temperature: config.TEMPERATURE,
+      max_tokens: config.MAX_TOKENS,
+      presence_penalty: -0.5
+    };
+
     return new Promise((resolve, reject) => {
       wx.request({
-        url: 'https://api.deepseek.com/v1/chat/completions',
+        url: config.API_ENDPOINT,
         method: 'POST',
-        timeout: 60000, // 增加到60秒
-        data: {
-          model: "deepseek-chat",
-          messages: [
-            {
-              "role": "system", 
-              "content": "你是一个专业的营养师和中医师。用户会描述他们的症状，你需要给出专业的饮食建议。请按以下格式回复：\n1. 症状分析\n[分析内容]\n\n2. 推荐食物\n• [食物1]: [功效说明]\n• [食物2]: [功效说明]\n• [食物3]: [功效说明]\n\n3. 禁忌食物\n• [食物1]: [原因]\n• [食物2]: [原因]\n• [食物3]: [原因]\n\n4. 饮食注意事项\n[具体建议]"
-            },
-            {
-              "role": "user", 
-              "content": this.data.inputText
-            }
-          ],
-          stream: false
-        },
+        timeout: 180000, // 增加到3分钟
+        data: requestData,
         header: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-ff86ef1135be4d00a5fdec0706255f33'
+          'Authorization': `Bearer ${config.API_KEY}`
         },
-        success: resolve,
-        fail: reject
+        success: (res) => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP 错误: ${res.statusCode}`));
+            return;
+          }
+          if (!res.data || !res.data.choices) {
+            reject(new Error('无效的 API 响应格式'));
+            return;
+          }
+          let content;
+          if (res.data.choices && res.data.choices[0]) {
+            content = res.data.choices[0].message.content;
+            console.log('API 返回内容:', content);
+          } else {
+            console.error('无法解析的响应格式:', res.data);
+            throw new Error('无法解析的 API 响应格式');
+          }
+          resolve(res);
+        },
+        fail: (error) => {
+          console.error('API 请求失败:', error);
+          reject(new Error(error.errMsg || '网络请求失败'));
+        }
       });
     });
   },
 
+  // 修改重试函数
+  async retryRequest(maxRetries = 3) {
+    let lastError;
+    
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        console.log(`开始第 ${i + 1} 次请求尝试，当前时间:`, new Date().toLocaleString());
+        
+        const result = await Promise.race([
+          this.makeRequest(),
+          new Promise((_, reject) => 
+            // 增加超时时间到60秒
+            setTimeout(() => reject(new Error('API 请求超时')), 60000)
+          )
+        ]);
+        console.log('API 请求成功');
+        return result;
+      } catch (error) {
+        lastError = error;
+        console.error(`第 ${i + 1} 次请求失败:`, error);
+        
+        if (i < maxRetries - 1) {
+          // 增加等待时间，使用更长的指数退避
+          const waitTime = Math.min(120000, 10000 * Math.pow(2, i)); // 最长等待2分钟
+          console.log(`等待 ${waitTime/1000}秒后重试，当前时间:`, new Date().toLocaleString());
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+    
+    console.error(`请求失败，最大重试次数 ${maxRetries}，最后一次错误:`, lastError);
+    throw new Error(`请求失败，已重试${maxRetries}次：${lastError.errMsg || '未知错误'}`);
+  },
+
   // 修改获取建议函数
   async getDietAdvice() {
-    if (this.data.loading) return;
+    const now = Date.now();
+    const lastRequestTime = this.data.lastRequestTime || 0;
+    if (now - lastRequestTime < 3000) { // 3秒内不允许重复请求
+      wx.showToast({
+        title: '请求太频繁，请稍后再试',
+        icon: 'none'
+      });
+      return;
+    }
+    this.data.lastRequestTime = now;
+
+    if (this.data.loading) {
+      console.log('已在加载中，忽略请求');
+      return;
+    }
     
+    // 检查输入是否为空
+    if (!this.data.inputText.trim()) {
+      console.log('输入为空，显示提示');
+      wx.showToast({
+        title: '请输入症状描述',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    console.log('开始请求，输入内容:', this.data.inputText);
+    console.log('当前时间:', new Date().toLocaleString());
+
     const keywords = this.extractKeywords(this.data.inputText);
-    const cachedResult = this.checkCache(keywords);
+    console.log('提取的关键词:', keywords);
     
-    if (cachedResult) {
-      // 使用缓存的结果
-      this.setData({ 
-        loading: true,
-        cacheHit: true,
-        loadingProgress: 0
-      });
+    const cachedResult = this.checkCache(keywords);
+    console.log('缓存检查结果:', cachedResult ? '命中缓存' : '未命中缓存');
+    
+    this.setData({ loading: true, loadingProgress: 0 });
+    this.loadingCount = 0;
+    this.loadingTimer = setInterval(() => this.updateLoadingText(), 500);
 
-      // 模拟加载进度
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 20;
-        if (progress <= 100) {
-          this.setData({ loadingProgress: progress });
-        } else {
-          clearInterval(progressInterval);
-          
-          // 显示缓存结果
-          const formattedContent = this.formatContent(cachedResult.content);
-          formattedContent.forEach(section => {
-            section.displayContent = '';
-          });
-          
-          this.setData({ 
-            formattedContent,
-            loading: false,
-            loadingText: ''
-          }, () => {
-            // 开始打字机效果
-            this.typeWriter(formattedContent);
-            
-            // 显示缓存提示
-            wx.showToast({
-              title: '已从缓存加载',
-              icon: 'none',
-              duration: 2000
-            });
-          });
-        }
-      }, 100);
+    try {
+      if (cachedResult) {
+        console.log('使用缓存内容:', cachedResult);
+        this.setData({ cacheHit: true });
+        
+        // 使用缓存内容
+        const formattedContent = this.formatContent(cachedResult.content);
+        console.log('格式化后的缓存内容:', formattedContent);
+        
+        formattedContent.forEach(section => {
+          section.displayContent = '';
+        });
+        
+        this.setData({ formattedContent }, () => {
+          this.typeWriter(formattedContent);
+        });
 
-      // 在使用缓存时添加
-      this.saveHistory(this.data.inputText, cachedResult.content);
-    } else {
-      // 没有缓存，发起API请求
-      this.setData({ 
-        loading: true,
-        cacheHit: false,
-        advice: '',
-        formattedContent: [],
-        loadingProgress: 0
-      });
+        this.saveHistory(this.data.inputText, cachedResult.content);
+      } else {
+        console.log('开始 API 请求流程');
+        
+        const response = await this.retryRequest();
+        console.log('API 完整响应:', response);
 
-      this.loadingCount = 0;
-      this.loadingTimer = setInterval(() => this.updateLoadingText(), 500);
-      
-      try {
-        const res = await this.retryRequest(() => this.makeRequest());
-        console.log('API响应:', res);
-        if (res.statusCode === 200 && res.data.choices && res.data.choices[0]) {
-          // 设置进度为100%
-          this.setData({ loadingProgress: 100 });
-          
-          const content = res.data.choices[0].message.content;
+        if (response.statusCode === 200 && response.data) {
+          let content;
+          if (response.data.choices && response.data.choices[0]) {
+            content = response.data.choices[0].message.content;
+            console.log('API 返回内容:', content);
+          } else {
+            console.error('无法解析的响应格式:', response.data);
+            throw new Error('无法解析的 API 响应格式');
+          }
+
+          if (!content) {
+            throw new Error('API 返回的内容为空');
+          }
           
           // 保存到缓存
           this.saveToCache(
@@ -340,58 +511,37 @@ Page({
             keywords,
             content
           );
-          
+
+          // 格式化并显示内容
           const formattedContent = this.formatContent(content);
-          
-          // 初始化显示内容
           formattedContent.forEach(section => {
             section.displayContent = '';
           });
           
           this.setData({ formattedContent }, () => {
-            // 开始打字机效果
             this.typeWriter(formattedContent);
           });
           
-          // 在使用API请求成功时添加
           this.saveHistory(this.data.inputText, content);
-          
-          clearInterval(this.loadingTimer);
-          setTimeout(() => {
-            this.setData({ 
-              loading: false,
-              loadingText: '',
-              loadingProgress: 0
-            });
-          }, 300);
         } else {
-          clearInterval(this.loadingTimer);
-          console.error('API错误:', res.data);
-          wx.showToast({
-            title: '获取建议失败，请重试',
-            icon: 'none',
-            duration: 3000
-          });
-          this.setData({ 
-            loading: false,
-            loadingText: '',
-            loadingProgress: 0
-          });
+          throw new Error('API 响应状态码异常或数据为空');
         }
-      } catch (error) {
-        clearInterval(this.loadingTimer);
-        console.error('请求失败:', error);
-        wx.showToast({
-          title: '网络请求失败，请稍后重试',
-          icon: 'none',
-          duration: 3000
-        });
-        this.setData({ 
-          loading: false,
-          loadingText: '',
-          loadingProgress: 0
-        });
       }
+    } catch (error) {
+      console.error('请求失败详细信息:', error);
+      console.error('错误堆栈:', error.stack);
+      wx.showToast({
+        title: '获取建议失败，请重试',
+        icon: 'none',
+        duration: 2000
+      });
+    } finally {
+      clearInterval(this.loadingTimer);
+      this.setData({ 
+        loading: false,
+        loadingProgress: 100
+      });
+      console.log('请求完成时间:', new Date().toLocaleString());
     }
   },
 
@@ -922,6 +1072,34 @@ Page({
   onLoad() {
     // 加载历史记录
     this.loadHistory();
+    
+    // 检查是否首次使用
+    try {
+      // 先尝试清除存储，确保每次都显示公告（测试用）
+      // wx.removeStorageSync('hasShownNotice');
+      
+      const hasShown = wx.getStorageSync('hasShownNotice');
+      console.log('是否已显示过公告:', hasShown);
+      
+      if (!hasShown) {
+        // 延迟显示公告，确保页面已完全加载
+        setTimeout(() => {
+          this.setData({ 
+            showNotice: true 
+          });
+          // 只有在公告成功显示后才保存状态
+          try {
+            wx.setStorageSync('hasShownNotice', true);
+          } catch (err) {
+            console.error('保存公告状态失败:', err);
+          }
+        }, 300);
+      }
+    } catch (err) {
+      console.error('读取公告状态失败:', err);
+      // 如果读取失败，也显示公告
+      this.setData({ showNotice: true });
+    }
   },
 
   // 清除历史记录
@@ -962,5 +1140,10 @@ Page({
   // 阻止滚动穿透
   preventScroll() {
     return false;
+  },
+
+  // 关闭公告
+  closeNotice() {
+    this.setData({ showNotice: false });
   }
 });
